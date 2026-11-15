@@ -8,7 +8,7 @@
 //
 // Implied value follows only from the snapshot's own figures, in three parts:
 //
-//   sector multiple  = the FDV/TVL multiple the market already pays for tokenized protocols in the
+//   sector multiple  = the market-cap/TVL multiple the market already pays for tokenized protocols in the
 //                      same category. Ratios are multiplicative — they run from 0.002x to 400x in
 //                      this snapshot — so the shrink is done in log space: the multiple is the
 //                      geometric mean of the category's peer median and the global median, weighted
@@ -77,7 +77,7 @@ export const MODEL: ModelConstants = {
 };
 
 /** The model's version label: the dashboard names it. */
-export const MODEL_VERSION = 'radar-3';
+export const MODEL_VERSION = 'radar-4';
 
 /** How many pre-token protocols outside the watchlist the early radar carries, by implied value. */
 export const EARLY_ROWS = 160;
@@ -85,7 +85,7 @@ export const EARLY_ROWS = 160;
 /** How many live-token protocols the Live token view carries, by market cap. */
 export const LIVE_ROWS = 24;
 
-/** One sector's FDV/TVL multiple, as the dashboard's table shows it. */
+/** One sector's market-cap/TVL multiple, as the dashboard's table shows it. */
 export interface SectorMultiple {
   category: string;
   peers: number;
@@ -211,7 +211,7 @@ export function ageDays(asOf: string, listedAt: string | null): number | null {
  * The sector multiples the snapshot's own tokenized peers imply. A peer is a protocol with a market
  * cap and a positive TVL, outside the CEX category (exchange tokens price the exchange, not the
  * protocol). Each category's median is shrunk toward the global median in log space — the multiple
- * is peerMedian^(n/(n+k)) x globalMedian^(k/(n+k)) with k the prior weight — because FDV/TVL
+ * is peerMedian^(n/(n+k)) x globalMedian^(k/(n+k)) with k the prior weight — because market-cap/TVL
  * ratios are multiplicative and a linear average lets one extreme peer (one category's only peer
  * trades at 400x) set the price alone. A category with no peer takes the global median. Sorted by
  * category, so the table the dashboard shows is stable.
@@ -400,151 +400,190 @@ function holdDaysFor(age: number | null): number {
   return 30;
 }
 
-/** The category's pair of actions: the first position, then the second qualifying action. */
-function actionsFor(p: SnapshotProtocol, capital: number, chain: string): [string, string] {
+/** One category action: what to do and what it costs. The cost is the capital the action moves, so
+ *  the step's cost line always matches the action it prices. */
+interface CategoryAction {
+  text: string;
+  cost: string;
+}
+
+/** The category's three actions: the first position, the second qualifying action, and a third
+ *  action that deepens the position. */
+function actionsFor(p: SnapshotProtocol, capital: number, chain: string): [CategoryAction, CategoryAction, CategoryAction] {
   const c = (p.category ?? '').toLowerCase();
   const name = p.name;
   if (c.includes('lend') || c.includes('cdp') || c.includes('collateral')) {
     return [
-      `Supply $${capital} of USDC to ${name} on ${chain} and leave the position open.`,
-      `Borrow $20 against the supply, then repay it in full the same week so both sides of the position are on record.`,
+      { text: `Supply $${capital} of USDC to ${name} on ${chain} and leave the position open.`, cost: `$${capital} of capital` },
+      { text: `Borrow $20 against the supply, then repay it in full the same week so both sides of the position are on record.`, cost: 'about $20 of capital' },
+      { text: `Add a second supply asset of $20 to the same market and keep both positions open, so the wallet is not single-asset.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('dex') || c.includes('leveraged farm')) {
     return [
-      `Provide $${capital} of liquidity to ${name}'s largest pool on ${chain} and keep the position open.`,
-      `Swap $10 through the same pool once a week, in alternating directions, so the position is active and not idle.`,
+      { text: `Provide $${capital} of liquidity to ${name}'s largest pool on ${chain} and keep the position open.`, cost: `$${capital} of capital` },
+      { text: `Swap $10 through the same pool once a week, in alternating directions, so the position is active and not idle.`, cost: 'about $10 of capital' },
+      { text: `Provide $20 of liquidity to a second pool on ${name}, so the wallet is in two of its pools.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('yield')) {
     return [
-      `Deposit $${capital} of USDC into a ${name} vault on ${chain} and keep the shares.`,
-      `Harvest the vault's yield once and deposit it straight back in, so the compounding is on record.`,
+      { text: `Deposit $${capital} of USDC into a ${name} vault on ${chain} and keep the shares.`, cost: `$${capital} of capital` },
+      { text: `Harvest the vault's yield once and deposit it straight back in, so the compounding is on record.`, cost: 'the harvested yield' },
+      { text: `Deposit a second $20 into the same vault after the first harvest, so the compounding has fresh capital.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('staking') || c.includes('restak')) {
     return [
-      `Stake $${capital} of the chain's staking asset through ${name} on ${chain} and keep the receipt token.`,
-      `Use the receipt token once in a lending market on the same chain, then return it to the staking position.`,
+      { text: `Stake $${capital} of the chain's staking asset through ${name} on ${chain} and keep the receipt token.`, cost: `$${capital} of capital` },
+      { text: `Use the receipt token once in a lending market on the same chain, then return it to the staking position.`, cost: 'the receipt token' },
+      { text: `Stake a second tranche of $20 through ${name} and keep both receipts, so the position grows rather than sitting still.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('perpetual') || c.includes('derivative') || c.includes('options')) {
     return [
-      `Deposit $${capital} of USDC as margin on ${name} and open one small hedge no larger than a tenth of it.`,
-      `Close the hedge and open a fresh one each month, so the account shows repeated trading rather than one trade.`,
+      { text: `Deposit $${capital} of USDC as margin on ${name} and open one small hedge no larger than a tenth of it.`, cost: `$${capital} of capital` },
+      { text: `Close the hedge and open a fresh one each month, so the account shows repeated trading rather than one trade.`, cost: 'no new capital' },
+      { text: `Open a second small hedge of $20 in the opposite direction, so the account holds both sides.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('prediction')) {
     return [
-      `Fund $${capital} on ${name} and place one position on a market that resolves within the month.`,
-      `Place one more position the week the first resolves, so the account stays active across resolutions.`,
+      { text: `Fund $${capital} on ${name} and place one position on a market that resolves within the month.`, cost: `$${capital} of capital` },
+      { text: `Place one more $20 position the week the first resolves, so the account stays active across resolutions.`, cost: 'about $20 of capital' },
+      { text: `Fund a second market with $20 that resolves after the first, so the account spans two resolutions.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('rwa')) {
     return [
-      `Mint $${capital} of the protocol's yield-bearing asset on ${chain} and hold it in the farming wallet.`,
-      `Claim the asset's yield once and hold the claim in the same wallet, so the holding and the claim are linked.`,
+      { text: `Mint $${capital} of the protocol's yield-bearing asset on ${chain} and hold it in the farming wallet.`, cost: `$${capital} of capital` },
+      { text: `Claim the asset's yield once and hold the claim in the same wallet, so the holding and the claim are linked.`, cost: 'the claimed yield' },
+      { text: `Buy a second $20 tranche of the yield-bearing asset after the first yield claim, so the position compounds.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('stable')) {
     return [
-      `Mint or deposit $${capital} of the stable asset through ${name} on ${chain} and hold it.`,
-      `Redeem $10 of the stable asset and mint it back, so the wallet shows both directions of the peg.`,
+      { text: `Mint or deposit $${capital} of the stable asset through ${name} on ${chain} and hold it.`, cost: `$${capital} of capital` },
+      { text: `Redeem $10 of the stable asset and mint it back, so the wallet shows both directions of the peg.`, cost: 'about $10 of capital' },
+      { text: `Deposit $20 of the stable asset into a lending market on the same chain, so it earns yield while the wallet holds the peg.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('insurance')) {
     return [
-      `Buy $${capital} of cover from ${name} on ${chain} and keep the policy for its full term.`,
-      `File one test claim for $1 on a covered event, or extend the cover by a month, so the policy is active.`,
+      { text: `Buy $${capital} of cover from ${name} on ${chain} and keep the policy for its full term.`, cost: `$${capital} of capital` },
+      { text: `File one test claim for $1 on a covered event, or extend the cover by a month, so the policy is active.`, cost: 'about $1 of capital' },
+      { text: `Buy $20 of extra cover on a second event, so the wallet holds two policies.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('curator') || c.includes('allocator') || c.includes('risk')) {
     return [
-      `Deposit $${capital} into a ${name} vault on ${chain} and keep the shares for the full hold.`,
-      `Move a tenth of the deposit to a second ${name} vault once, so the wallet is spread across its strategies.`,
+      { text: `Deposit $${capital} into a ${name} vault on ${chain} and keep the shares for the full hold.`, cost: `$${capital} of capital` },
+      { text: `Move a tenth of the deposit to a second ${name} vault once, so the wallet is spread across its strategies.`, cost: 'a tenth of the deposit' },
+      { text: `Deposit a second $20 into the second vault after the first move, so both strategies keep growing.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('launchpad')) {
     return [
-      `Stake $${capital} of the qualifying asset on ${name} to meet its sale threshold on ${chain}.`,
-      `Join one token sale the stake qualifies for, with the smallest allocation it allows.`,
+      { text: `Stake $${capital} of the qualifying asset on ${name} to meet its sale threshold on ${chain}.`, cost: `$${capital} of capital` },
+      { text: `Join one token sale the stake qualifies for, with the smallest allocation it allows.`, cost: 'the smallest allocation it allows' },
+      { text: `Top up the stake by $20 once, so the qualifying balance grows rather than sitting still.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('payment')) {
     return [
-      `Pay one $20 invoice through ${name} on ${chain} from the farming wallet.`,
-      `Set up one recurring payment of $10 a month through ${name}, so the wallet shows repeated use.`,
+      { text: `Pay one $20 invoice through ${name} on ${chain} from the farming wallet.`, cost: `$${capital} of capital` },
+      { text: `Set up one recurring payment of $10 a month through ${name}, so the wallet shows repeated use.`, cost: 'about $10 of capital a month' },
+      { text: `Pay a second $20 invoice to a different recipient, so the wallet shows more than one counterparty.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('privacy')) {
     return [
-      `Deposit $${capital} into ${name}'s shielded pool on ${chain} and keep the note.`,
-      `Withdraw $10 from the shielded pool to a fresh address, then deposit it back, so both directions are used.`,
+      { text: `Deposit $${capital} into ${name}'s shielded pool on ${chain} and keep the note.`, cost: `$${capital} of capital` },
+      { text: `Withdraw $10 from the shielded pool to a fresh address, then deposit it back, so both directions are used.`, cost: 'about $10 of capital' },
+      { text: `Deposit a second $20 into the shielded pool after the first withdrawal, so the pool sees repeated use.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('nft')) {
     return [
-      `List one item for sale on ${name} on ${chain} at a price near the floor.`,
-      `Buy one low-cost item on ${name} and hold it, so the wallet is both a seller and a buyer.`,
+      { text: `List one item for sale on ${name} on ${chain} at a price near the floor.`, cost: `$${capital} of capital` },
+      { text: `Buy one low-cost item on ${name} and hold it, so the wallet is both a seller and a buyer.`, cost: 'one low-cost item' },
+      { text: `Make a $20 offer below the floor on an item you want, so the wallet bids as well as buys and sells.`, cost: 'about $20 of capital' },
     ];
   }
   if (c.includes('index')) {
     return [
-      `Buy $${capital} of ${name}'s index token on ${chain} and hold it.`,
-      `Rebalance the index holding once, selling a tenth and buying it back, so the position is managed.`,
+      { text: `Buy $${capital} of ${name}'s index token on ${chain} and hold it.`, cost: `$${capital} of capital` },
+      { text: `Rebalance the index holding once, selling a tenth and buying it back, so the position is managed.`, cost: 'a tenth of the holding' },
+      { text: `Add $20 to the index holding after the first rebalance, so the position grows.`, cost: 'about $20 of capital' },
     ];
   }
   return [
-    `Deposit $${capital} of USDC into ${name} on ${chain} and keep the position open.`,
-    `Make one swap of $10 through ${name} once a week, so the wallet shows repeated use of the app.`,
+    { text: `Deposit $${capital} of USDC into ${name} on ${chain} and keep the position open.`, cost: `$${capital} of capital` },
+    { text: `Make one swap of $10 through ${name} once a week, so the wallet shows repeated use of the app.`, cost: 'about $10 of capital' },
+    { text: `Deposit $20 into a second feature of the same protocol, such as its vault or its swap, so the wallet uses more than one part of the app.`, cost: 'about $20 of capital' },
   ];
+}
+
+/** What the protocol pays out, for the claim step: the surface the farmer checks before withdrawing. */
+function claimSurface(p: SnapshotProtocol): string {
+  const c = (p.category ?? '').toLowerCase();
+  if (c.includes('yield') || c.includes('curator') || c.includes('allocator') || c.includes('risk')) return 'the vault yield';
+  if (c.includes('staking') || c.includes('restak')) return 'the staking rewards';
+  if (c.includes('prediction')) return 'the market winnings';
+  if (c.includes('insurance')) return 'the cover payout';
+  if (c.includes('launchpad')) return 'the sale allocation';
+  if (c.includes('index')) return 'the index yield';
+  if (c.includes('rwa')) return 'the asset yield';
+  if (c.includes('perpetual') || c.includes('derivative') || c.includes('options')) return 'the trading rewards';
+  return 'the points';
 }
 
 /**
  * A protocol's farm plan: seven steps, each an action with a cost and a time. The plan is derived
  * from the protocol's own record (category, chains, TVL, age), never from a hand-written list of
- * names. The two category actions are the core; the rest is wallet hygiene, cadence, hold, claim
- * safety and the log.
+ * names. The three category actions are the core; the rest is wallet hygiene, hold with a weekly
+ * cadence, claim safety and the log.
  */
 export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
   const chain = chainOf(p);
   const gas = gasFor(chain);
   const capital = capitalFor(p);
   const hold = holdDaysFor(age);
-  const [first, second] = actionsFor(p, capital, chain);
+  const [first, second, third] = actionsFor(p, capital, chain);
+  const surface = claimSurface(p);
   return [
     {
-      text: `Use a fresh wallet that holds only the funds you plan to farm, and write its seed phrase on paper, never in a chat or a file.`,
+      text: `Use a fresh wallet on ${chain} that holds only the funds you plan to farm, and write its seed phrase on paper, never in a chat or a file.`,
       cost: gas.tx,
       time: '5 minutes',
     },
     {
-      text: first,
-      cost: `$${capital} of capital and ${gas.tx}`,
+      text: first.text,
+      cost: `${first.cost} and ${gas.tx}`,
       time: '15 minutes to set up',
     },
     {
-      text: second,
-      cost: 'about $20 of capital and ' + gas.tx,
+      text: second.text,
+      cost: `${second.cost} and ${gas.tx}`,
       time: '10 minutes',
     },
     {
-      text: `Do one qualifying action each week, such as a deposit, a swap, a vote or a claim, and never leave the wallet idle for a month.`,
-      cost: gas.week,
-      time: '10 minutes a week',
+      text: third.text,
+      cost: `${third.cost} and ${gas.tx}`,
+      time: '10 minutes',
     },
     {
-      text: `Hold the position for at least ${hold} days so the activity is counted in more than one snapshot.`,
+      text: `Hold the position for at least ${hold} days and do one qualifying action each week during the hold, so the activity is counted in more than one snapshot.`,
       cost: `the $${capital} stays in the position`,
       time: `${hold} days`,
     },
     {
-      text: `Before you withdraw, open the protocol's own points or rewards page and claim only from the link it publishes; never pay anyone to claim for you.`,
+      text: `Before you withdraw, open the protocol's own rewards page and claim ${surface} only from the link it publishes; never pay anyone to claim for you.`,
       cost: 'no fee to check',
       time: '10 minutes',
     },
     {
-      text: `Write the wallet, the dates and every transaction hash in a farm log, and plan the unwind: withdraw in two parts over two days.`,
+      text: `Write the wallet, the dates and every transaction hash in a farm log, and plan the unwind: withdraw half ($${capital / 2}) on day one and the rest on day two.`,
       cost: 'nothing but the log',
       time: '10 minutes',
     },

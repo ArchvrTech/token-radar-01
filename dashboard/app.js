@@ -89,69 +89,97 @@
     var c = (p.category || '').toLowerCase();
     var name = p.name;
     if (c.indexOf('lend') >= 0 || c.indexOf('cdp') >= 0 || c.indexOf('collateral') >= 0) return [
-      'Supply $' + capital + ' of USDC to ' + name + ' on ' + chain + ' and leave the position open.',
-      'Borrow $20 against the supply, then repay it in full the same week so both sides of the position are on record.'
+      { text: 'Supply $' + capital + ' of USDC to ' + name + ' on ' + chain + ' and leave the position open.', cost: '$' + capital + ' of capital' },
+      { text: 'Borrow $20 against the supply, then repay it in full the same week so both sides of the position are on record.', cost: 'about $20 of capital' },
+      { text: 'Add a second supply asset of $20 to the same market and keep both positions open, so the wallet is not single-asset.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('dex') >= 0 || c.indexOf('leveraged farm') >= 0) return [
-      "Provide $" + capital + " of liquidity to " + name + "'s largest pool on " + chain + ' and keep the position open.',
-      'Swap $10 through the same pool once a week, in alternating directions, so the position is active and not idle.'
+      { text: "Provide $" + capital + " of liquidity to " + name + "'s largest pool on " + chain + ' and keep the position open.', cost: '$' + capital + ' of capital' },
+      { text: 'Swap $10 through the same pool once a week, in alternating directions, so the position is active and not idle.', cost: 'about $10 of capital' },
+      { text: 'Provide $20 of liquidity to a second pool on ' + name + ', so the wallet is in two of its pools.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('yield') >= 0) return [
-      'Deposit $' + capital + ' of USDC into a ' + name + ' vault on ' + chain + ' and keep the shares.',
-      "Harvest the vault's yield once and deposit it straight back in, so the compounding is on record."
+      { text: 'Deposit $' + capital + ' of USDC into a ' + name + ' vault on ' + chain + ' and keep the shares.', cost: '$' + capital + ' of capital' },
+      { text: "Harvest the vault's yield once and deposit it straight back in, so the compounding is on record.", cost: 'the harvested yield' },
+      { text: 'Deposit a second $20 into the same vault after the first harvest, so the compounding has fresh capital.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('staking') >= 0 || c.indexOf('restak') >= 0) return [
-      "Stake $" + capital + " of the chain's staking asset through " + name + ' on ' + chain + ' and keep the receipt token.',
-      'Use the receipt token once in a lending market on the same chain, then return it to the staking position.'
+      { text: "Stake $" + capital + " of the chain's staking asset through " + name + ' on ' + chain + ' and keep the receipt token.', cost: '$' + capital + ' of capital' },
+      { text: 'Use the receipt token once in a lending market on the same chain, then return it to the staking position.', cost: 'the receipt token' },
+      { text: 'Stake a second tranche of $20 through ' + name + ' and keep both receipts, so the position grows rather than sitting still.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('perpetual') >= 0 || c.indexOf('derivative') >= 0 || c.indexOf('options') >= 0) return [
-      'Deposit $' + capital + ' of USDC as margin on ' + name + ' and open one small hedge no larger than a tenth of it.',
-      'Close the hedge and open a fresh one each month, so the account shows repeated trading rather than one trade.'
+      { text: 'Deposit $' + capital + ' of USDC as margin on ' + name + ' and open one small hedge no larger than a tenth of it.', cost: '$' + capital + ' of capital' },
+      { text: 'Close the hedge and open a fresh one each month, so the account shows repeated trading rather than one trade.', cost: 'no new capital' },
+      { text: 'Open a second small hedge of $20 in the opposite direction, so the account holds both sides.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('prediction') >= 0) return [
-      'Fund $' + capital + ' on ' + name + ' and place one position on a market that resolves within the month.',
-      'Place one more position the week the first resolves, so the account stays active across resolutions.'
+      { text: 'Fund $' + capital + ' on ' + name + ' and place one position on a market that resolves within the month.', cost: '$' + capital + ' of capital' },
+      { text: 'Place one more $20 position the week the first resolves, so the account stays active across resolutions.', cost: 'about $20 of capital' },
+      { text: 'Fund a second market with $20 that resolves after the first, so the account spans two resolutions.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('rwa') >= 0) return [
-      "Mint $" + capital + " of the protocol's yield-bearing asset on " + chain + ' and hold it in the farming wallet.',
-      "Claim the asset's yield once and hold the claim in the same wallet, so the holding and the claim are linked."
+      { text: "Mint $" + capital + " of the protocol's yield-bearing asset on " + chain + ' and hold it in the farming wallet.', cost: '$' + capital + ' of capital' },
+      { text: "Claim the asset's yield once and hold the claim in the same wallet, so the holding and the claim are linked.", cost: 'the claimed yield' },
+      { text: 'Buy a second $20 tranche of the yield-bearing asset after the first yield claim, so the position compounds.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('stable') >= 0) return [
-      'Mint or deposit $' + capital + ' of the stable asset through ' + name + ' on ' + chain + ' and hold it.',
-      'Redeem $10 of the stable asset and mint it back, so the wallet shows both directions of the peg.'
+      { text: 'Mint or deposit $' + capital + ' of the stable asset through ' + name + ' on ' + chain + ' and hold it.', cost: '$' + capital + ' of capital' },
+      { text: 'Redeem $10 of the stable asset and mint it back, so the wallet shows both directions of the peg.', cost: 'about $10 of capital' },
+      { text: 'Deposit $20 of the stable asset into a lending market on the same chain, so it earns yield while the wallet holds the peg.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('insurance') >= 0) return [
-      'Buy $' + capital + ' of cover from ' + name + ' on ' + chain + ' and keep the policy for its full term.',
-      'File one test claim for $1 on a covered event, or extend the cover by a month, so the policy is active.'
+      { text: 'Buy $' + capital + ' of cover from ' + name + ' on ' + chain + ' and keep the policy for its full term.', cost: '$' + capital + ' of capital' },
+      { text: 'File one test claim for $1 on a covered event, or extend the cover by a month, so the policy is active.', cost: 'about $1 of capital' },
+      { text: 'Buy $20 of extra cover on a second event, so the wallet holds two policies.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('curator') >= 0 || c.indexOf('allocator') >= 0 || c.indexOf('risk') >= 0) return [
-      'Deposit $' + capital + ' into a ' + name + ' vault on ' + chain + ' and keep the shares for the full hold.',
-      'Move a tenth of the deposit to a second ' + name + ' vault once, so the wallet is spread across its strategies.'
+      { text: 'Deposit $' + capital + ' into a ' + name + ' vault on ' + chain + ' and keep the shares for the full hold.', cost: '$' + capital + ' of capital' },
+      { text: 'Move a tenth of the deposit to a second ' + name + ' vault once, so the wallet is spread across its strategies.', cost: 'a tenth of the deposit' },
+      { text: 'Deposit a second $20 into the second vault after the first move, so both strategies keep growing.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('launchpad') >= 0) return [
-      'Stake $' + capital + ' of the qualifying asset on ' + name + ' to meet its sale threshold on ' + chain + '.',
-      'Join one token sale the stake qualifies for, with the smallest allocation it allows.'
+      { text: 'Stake $' + capital + ' of the qualifying asset on ' + name + ' to meet its sale threshold on ' + chain + '.', cost: '$' + capital + ' of capital' },
+      { text: 'Join one token sale the stake qualifies for, with the smallest allocation it allows.', cost: 'the smallest allocation it allows' },
+      { text: 'Top up the stake by $20 once, so the qualifying balance grows rather than sitting still.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('payment') >= 0) return [
-      'Pay one $20 invoice through ' + name + ' on ' + chain + ' from the farming wallet.',
-      'Set up one recurring payment of $10 a month through ' + name + ', so the wallet shows repeated use.'
+      { text: 'Pay one $20 invoice through ' + name + ' on ' + chain + ' from the farming wallet.', cost: '$' + capital + ' of capital' },
+      { text: 'Set up one recurring payment of $10 a month through ' + name + ', so the wallet shows repeated use.', cost: 'about $10 of capital a month' },
+      { text: 'Pay a second $20 invoice to a different recipient, so the wallet shows more than one counterparty.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('privacy') >= 0) return [
-      'Deposit $' + capital + ' into ' + name + "'s shielded pool on " + chain + ' and keep the note.',
-      'Withdraw $10 from the shielded pool to a fresh address, then deposit it back, so both directions are used.'
+      { text: 'Deposit $' + capital + ' into ' + name + "'s shielded pool on " + chain + ' and keep the note.', cost: '$' + capital + ' of capital' },
+      { text: 'Withdraw $10 from the shielded pool to a fresh address, then deposit it back, so both directions are used.', cost: 'about $10 of capital' },
+      { text: 'Deposit a second $20 into the shielded pool after the first withdrawal, so the pool sees repeated use.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('nft') >= 0) return [
-      'List one item for sale on ' + name + ' on ' + chain + ' at a price near the floor.',
-      'Buy one low-cost item on ' + name + ' and hold it, so the wallet is both a seller and a buyer.'
+      { text: 'List one item for sale on ' + name + ' on ' + chain + ' at a price near the floor.', cost: '$' + capital + ' of capital' },
+      { text: 'Buy one low-cost item on ' + name + ' and hold it, so the wallet is both a seller and a buyer.', cost: 'one low-cost item' },
+      { text: 'Make a $20 offer below the floor on an item you want, so the wallet bids as well as buys and sells.', cost: 'about $20 of capital' }
     ];
     if (c.indexOf('index') >= 0) return [
-      'Buy $' + capital + " of " + name + "'s index token on " + chain + ' and hold it.',
-      'Rebalance the index holding once, selling a tenth and buying it back, so the position is managed.'
+      { text: 'Buy $' + capital + " of " + name + "'s index token on " + chain + ' and hold it.', cost: '$' + capital + ' of capital' },
+      { text: 'Rebalance the index holding once, selling a tenth and buying it back, so the position is managed.', cost: 'a tenth of the holding' },
+      { text: 'Add $20 to the index holding after the first rebalance, so the position grows.', cost: 'about $20 of capital' }
     ];
     return [
-      'Deposit $' + capital + ' of USDC into ' + name + ' on ' + chain + ' and keep the position open.',
-      'Make one swap of $10 through ' + name + ' once a week, so the wallet shows repeated use of the app.'
+      { text: 'Deposit $' + capital + ' of USDC into ' + name + ' on ' + chain + ' and keep the position open.', cost: '$' + capital + ' of capital' },
+      { text: 'Make one swap of $10 through ' + name + ' once a week, so the wallet shows repeated use of the app.', cost: 'about $10 of capital' },
+      { text: 'Deposit $20 into a second feature of the same protocol, such as its vault or its swap, so the wallet uses more than one part of the app.', cost: 'about $20 of capital' }
     ];
+  }
+  function claimSurface(p) {
+    var c = (p.category || '').toLowerCase();
+    if (c.indexOf('yield') >= 0 || c.indexOf('curator') >= 0 || c.indexOf('allocator') >= 0 || c.indexOf('risk') >= 0) return 'the vault yield';
+    if (c.indexOf('staking') >= 0 || c.indexOf('restak') >= 0) return 'the staking rewards';
+    if (c.indexOf('prediction') >= 0) return 'the market winnings';
+    if (c.indexOf('insurance') >= 0) return 'the cover payout';
+    if (c.indexOf('launchpad') >= 0) return 'the sale allocation';
+    if (c.indexOf('index') >= 0) return 'the index yield';
+    if (c.indexOf('rwa') >= 0) return 'the asset yield';
+    if (c.indexOf('perpetual') >= 0 || c.indexOf('derivative') >= 0 || c.indexOf('options') >= 0) return 'the trading rewards';
+    return 'the points';
   }
   function stepText(step) {
     var s = step.text + ' Cost: ' + step.cost + '. Time: ' + step.time + '.';
@@ -164,15 +192,16 @@
     var gas = gasFor(chain);
     var capital = capitalFor(p);
     var hold = holdDaysFor(p.age_days);
-    var pair = actionsFor(p, capital, chain);
+    var trio = actionsFor(p, capital, chain);
+    var surface = claimSurface(p);
     return [
-      { text: 'Use a fresh wallet that holds only the funds you plan to farm, and write its seed phrase on paper, never in a chat or a file.', cost: gas.tx, time: '5 minutes' },
-      { text: pair[0], cost: '$' + capital + ' of capital and ' + gas.tx, time: '15 minutes to set up' },
-      { text: pair[1], cost: 'about $20 of capital and ' + gas.tx, time: '10 minutes' },
-      { text: 'Do one qualifying action each week, such as a deposit, a swap, a vote or a claim, and never leave the wallet idle for a month.', cost: gas.week, time: '10 minutes a week' },
-      { text: 'Hold the position for at least ' + hold + ' days so the activity is counted in more than one snapshot.', cost: 'the $' + capital + ' stays in the position', time: hold + ' days' },
-      { text: "Before you withdraw, open the protocol's own points or rewards page and claim only from the link it publishes; never pay anyone to claim for you.", cost: 'no fee to check', time: '10 minutes' },
-      { text: 'Write the wallet, the dates and every transaction hash in a farm log, and plan the unwind: withdraw in two parts over two days.', cost: 'nothing but the log', time: '10 minutes' }
+      { text: 'Use a fresh wallet on ' + chain + ' that holds only the funds you plan to farm, and write its seed phrase on paper, never in a chat or a file.', cost: gas.tx, time: '5 minutes' },
+      { text: trio[0].text, cost: trio[0].cost + ' and ' + gas.tx, time: '15 minutes to set up' },
+      { text: trio[1].text, cost: trio[1].cost + ' and ' + gas.tx, time: '10 minutes' },
+      { text: trio[2].text, cost: trio[2].cost + ' and ' + gas.tx, time: '10 minutes' },
+      { text: 'Hold the position for at least ' + hold + ' days and do one qualifying action each week during the hold, so the activity is counted in more than one snapshot.', cost: 'the $' + capital + ' stays in the position', time: hold + ' days' },
+      { text: "Before you withdraw, open the protocol's own rewards page and claim " + surface + ' only from the link it publishes; never pay anyone to claim for you.', cost: 'no fee to check', time: '10 minutes' },
+      { text: 'Write the wallet, the dates and every transaction hash in a farm log, and plan the unwind: withdraw half ($' + (capital / 2) + ') on day one and the rest on day two.', cost: 'nothing but the log', time: '10 minutes' }
     ].map(stepText);
   }
 
@@ -386,7 +415,7 @@
       el('div', { class: 'formula' },
         'implied = round( tvl_usd x sector_multiple x (1 + clamp(change_7d, ' + m.growth_floor + ', ' + m.growth_cap + ') / 100 x ' + m.growth_weight + ') x (' + m.maturity_floor + ' + min(age_days, ' + m.maturity_days + ') / ' + m.maturity_days + ' x ' + m.maturity_range + ') )'
       ),
-      el('p', { class: 'sub', text: 'The sector multiple is the geometric mean of the peer median FDV/TVL for the category and the global median, weighted by peer count against a prior weight of ' + m.prior_weight + ', so a multiple built on one peer sits much closer to the global median than one built on fifteen, and clamped to [' + m.multiple_floor + ', ' + m.multiple_cap + ']. Age is the time since the protocol was first listed, the best record of how long it has run with no token; an unlisted age uses ' + m.unknown_age_days + ' days. ' + noPeers + ' categories have no tokenized peer and take the global median.' }),
+      el('p', { class: 'sub', text: 'The sector multiple is the geometric mean of the peer median market-cap/TVL for the category and the global median, weighted by peer count against a prior weight of ' + m.prior_weight + ', so a multiple built on one peer sits much closer to the global median than one built on fifteen, and clamped to [' + m.multiple_floor + ', ' + m.multiple_cap + ']. Age is the time since the protocol was first listed, the best record of how long it has run with no token; an unlisted age uses ' + m.unknown_age_days + ' days. ' + noPeers + ' categories have no tokenized peer and take the global median.' }),
       el('table', { class: 'sectors' },
         el('thead', null, el('tr', null,
           el('th', { scope: 'col', text: 'Category' }),
