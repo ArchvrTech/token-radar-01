@@ -36,7 +36,7 @@
     var growthMult = 1 + (growth / 100) * model.growth_weight;
     var age = row.age_days === null || row.age_days === undefined ? model.unknown_age_days : row.age_days;
     var maturity = model.maturity_floor + (Math.min(Math.max(age, 0), model.maturity_days) / model.maturity_days) * model.maturity_range;
-    return Math.max(1, Math.round(row.tvl_usd * row.sector_multiple * growthMult * maturity));
+    return Math.max(1, Math.round(row.curve_value_usd * growthMult * maturity));
   }
 
   function el(tag, attrs) {
@@ -249,7 +249,7 @@
       else if (key === 'tvl') { av = a.tvl_usd; bv = b.tvl_usd; }
       else if (key === 'growth') { av = a.change_7d === null ? -Infinity : a.change_7d; bv = b.change_7d === null ? -Infinity : b.change_7d; }
       else if (key === 'age') { av = a.age_days === null ? Infinity : a.age_days; bv = b.age_days === null ? Infinity : b.age_days; }
-      else if (key === 'multiple') { av = a.sector_multiple; bv = b.sector_multiple; }
+      else if (key === 'net') { av = a.farm_net_usd; bv = b.farm_net_usd; }
       else { av = a.implied_value_usd; bv = b.implied_value_usd; }
       if (av < bv) return -state.dir;
       if (av > bv) return state.dir;
@@ -353,7 +353,7 @@
         el('td', { class: 'num', text: fmtUsd(r.tvl_usd) }),
         el('td', { class: 'num ' + growthClass, text: growth }),
         el('td', { class: 'num', text: fmtAge(r.age_days) }),
-        el('td', { class: 'num', text: r.sector_multiple.toFixed(2) + 'x' }),
+        el('td', null, el('span', { class: 'tag ' + r.farm_verdict, text: r.farm_verdict + ' ' + (r.farm_net_usd >= 0 ? '+' : '') + '$' + r.farm_net_usd.toFixed(2) })),
         el('td', null, el('div', { class: 'implied' },
           el('div', { class: 'bar', 'aria-hidden': 'true' }, el('i', { style: 'width:' + Math.max(3, Math.round((r.implied_value_usd / max) * 100)) + '%' })),
           el('span', { class: 'num', text: fmtUsd(r.implied_value_usd) })
@@ -372,7 +372,7 @@
             sortHeader('tvl', 'TVL'),
             sortHeader('growth', '7d'),
             sortHeader('age', 'Age'),
-            sortHeader('multiple', 'Sector x'),
+            sortHeader('net', 'Farm net'),
             sortHeader('implied', 'Implied value'),
             el('th', { scope: 'col', text: 'Token' })
           )),
@@ -407,28 +407,51 @@
 
   function modelPanel() {
     var m = DATA.model;
-    var withPeers = DATA.sectors.filter(function (s) { return s.peers > 0; }).sort(function (a, b) { return b.used_multiple - a.used_multiple || (a.category < b.category ? -1 : 1); });
-    var noPeers = DATA.sectors.filter(function (s) { return s.peers === 0; }).length;
+    var f = DATA.fit;
+    var o = DATA.oos;
     return el('section', { class: 'panel model' },
       el('h2', { text: 'How implied value is computed' }),
-      el('p', { class: 'sub', text: 'One function of the snapshot figures scores every row. No protocol name is special-cased, and no row is hand-picked.' }),
+      el('p', { class: 'sub', text: 'One fitted curve scores every row. No protocol name is special-cased, and no row is hand-picked.' }),
       el('div', { class: 'formula' },
-        'implied = round( tvl_usd x sector_multiple x (1 + clamp(change_7d, ' + m.growth_floor + ', ' + m.growth_cap + ') / 100 x ' + m.growth_weight + ') x (' + m.maturity_floor + ' + min(age_days, ' + m.maturity_days + ') / ' + m.maturity_days + ' x ' + m.maturity_range + ') )'
+        'implied = round( exp(' + f.intercept + ' + ' + f.slope + ' x ln(tvl_usd)) x (1 + clamp(change_7d, ' + m.growth_floor + ', ' + m.growth_cap + ') / 100 x ' + m.growth_weight + ') x (' + m.maturity_floor + ' + min(age_days, ' + m.maturity_days + ') / ' + m.maturity_days + ' x ' + m.maturity_range + ') )'
       ),
-      el('p', { class: 'sub', text: 'The sector multiple is the geometric mean of the peer median market-cap/TVL for the category and the global median, weighted by peer count against a prior weight of ' + m.prior_weight + ', so a multiple built on one peer sits much closer to the global median than one built on fifteen, and clamped to [' + m.multiple_floor + ', ' + m.multiple_cap + ']. Age is the time since the protocol was first listed, the best record of how long it has run with no token; an unlisted age uses ' + m.unknown_age_days + ' days. ' + noPeers + ' categories have no tokenized peer and take the global median.' }),
+      el('p', { class: 'sub', text: 'The curve is log(market cap) on log(TVL), fitted by least squares on the ' + f.comps + ' tokenized protocols in this snapshot (exchanges excluded) — the market pays a smaller multiple as a protocol grows, so the slope is below 1. Age is the time since the protocol was first listed, the best record of how long it has run with no token; an unlisted age uses ' + m.unknown_age_days + ' days.' }),
+      el('div', { class: 'equation' },
+        el('div', null, el('span', { text: 'Comps fitted' }), el('b', { class: 'num', text: String(f.comps) + ' tokenized protocols' })),
+        el('div', null, el('span', { text: 'Slope (log-log)' }), el('b', { class: 'num', text: String(f.slope) + '  [90% bootstrap ' + f.slope_low + ' to ' + f.slope_high + ']' })),
+        el('div', null, el('span', { text: 'Intercept' }), el('b', { class: 'num', text: String(f.intercept) + '  [90% bootstrap ' + f.intercept_low + ' to ' + f.intercept_high + ']' }))
+      ),
+      el('h3', { text: 'Tested blind, five folds' }),
+      el('p', { class: 'sub', text: 'Each fold holds out a fifth of the comps and fits the curve on the other four, so the curve never sees the protocol it scores. The old sector-median model is scored on the same split. Median |log error| is the typical miss in log points — a miss of 1.2 means the value is typically off by about 3.3x; within 2x is the share of held-out protocols priced within a factor of two.' }),
+      el('table', { class: 'sectors' },
+        el('thead', null, el('tr', null,
+          el('th', { scope: 'col', text: 'Model' }),
+          el('th', { scope: 'col', class: 'num', text: 'Median |log error|' }),
+          el('th', { scope: 'col', class: 'num', text: 'Within 2x' }),
+          el('th', { scope: 'col', class: 'num', text: 'Protocols' })
+        )),
+        el('tbody', null,
+          el('tr', null, el('td', { text: 'radar-5 (this board), all comps' }), el('td', { class: 'num', text: String(o.radar5.median_abs_log) }), el('td', { class: 'num', text: Math.round(o.radar5.within_2x * 100) + '%' }), el('td', { class: 'num', text: String(o.radar5.n) })),
+          el('tr', null, el('td', { text: 'radar-4 (sector median), all comps' }), el('td', { class: 'num', text: String(o.radar4.median_abs_log) }), el('td', { class: 'num', text: Math.round(o.radar4.within_2x * 100) + '%' }), el('td', { class: 'num', text: String(o.radar4.n) })),
+          el('tr', null, el('td', { text: 'radar-5, TVL at least $50M' }), el('td', { class: 'num', text: String(o.radar5_large.median_abs_log) }), el('td', { class: 'num', text: Math.round(o.radar5_large.within_2x * 100) + '%' }), el('td', { class: 'num', text: String(o.radar5_large.n) })),
+          el('tr', null, el('td', { text: 'radar-4, TVL at least $50M' }), el('td', { class: 'num', text: String(o.radar4_large.median_abs_log) }), el('td', { class: 'num', text: Math.round(o.radar4_large.within_2x * 100) + '%' }), el('td', { class: 'num', text: String(o.radar4_large.n) }))
+        )
+      ),
+      el('h3', { text: 'Farm economics, netted to the dollar' }),
+      el('p', { class: 'sub', text: 'Each plan is netted as expected value minus gas minus the yield its capital forgoes. The expected value assumes the launch gives ' + Math.round(m.allocation_share * 100) + '% of supply to farmers, split among the wallets doing the qualifying actions — one wallet per $' + m.typical_position_usd.toLocaleString('en-US') + ' of TVL, capped at ' + m.farmer_cap.toLocaleString('en-US') + ' wallets, because the snapshot records TVL, not wallets. The reward is per active wallet, not pro-rata to capital: airdrops pay for actions. Gas is one setup, one transaction a week of the hold, one claim and two to unwind, at the chain\u2019s own price. The capital forgoes ' + Math.round(m.opportunity_apy * 100) + '% a year over the hold. The verdict is farm when the net clears $' + m.farm_threshold_usd + ', thin when it clears $0, and skip when it does not.' }),
+      el('h3', { text: 'What the market pays per category (reference only)' }),
+      el('p', { class: 'sub', text: 'Category medians were tested as pricing inputs and made the blind error worse, so they do not price anything here — they are shown so the choice is visible.' }),
       el('table', { class: 'sectors' },
         el('thead', null, el('tr', null,
           el('th', { scope: 'col', text: 'Category' }),
-          el('th', { scope: 'col', class: 'num', text: 'Peers' }),
-          el('th', { scope: 'col', class: 'num', text: 'Peer median' }),
-          el('th', { scope: 'col', class: 'num', text: 'Multiple used' })
+          el('th', { scope: 'col', class: 'num', text: 'Comps' }),
+          el('th', { scope: 'col', class: 'num', text: 'Median multiple' })
         )),
-        el('tbody', null, withPeers.map(function (s) {
+        el('tbody', null, DATA.category_reference.map(function (s) {
           return el('tr', null,
             el('td', { text: s.category }),
-            el('td', { class: 'num', text: String(s.peers) }),
-            el('td', { class: 'num', text: s.peer_median.toFixed(2) + 'x' }),
-            el('td', { class: 'num', text: s.used_multiple.toFixed(2) + 'x' })
+            el('td', { class: 'num', text: String(s.comps) }),
+            el('td', { class: 'num', text: s.median_multiple.toFixed(2) + 'x' })
           );
         }))
       )
@@ -463,7 +486,7 @@
       el('h3', { text: 'Implied value' }),
       el('div', { class: 'equation' },
         el('div', null, el('span', { text: 'TVL' }), el('b', { class: 'num', text: fmtUsd(row.tvl_usd) })),
-        el('div', null, el('span', { text: 'Sector multiple (' + (row.category || 'Other') + ')' }), el('b', { class: 'num', text: row.sector_multiple.toFixed(2) + 'x from ' + row.sector_peers + ' peer' + (row.sector_peers === 1 ? '' : 's') })),
+        el('div', null, el('span', { text: 'Size curve value' }), el('b', { class: 'num', text: fmtUsd(row.curve_value_usd) })),
         el('div', null, el('span', { text: 'Seven-day growth' }), el('b', { class: 'num', text: fmtPct(row.change_7d) })),
         el('div', null, el('span', { text: 'Age with no token' }), el('b', { class: 'num', text: fmtAge(row.age_days) })),
         el('div', null, el('span', { text: 'Growth multiplier' }), el('b', { class: 'num', text: String(row.growth_multiplier) })),
@@ -471,6 +494,17 @@
         el('div', null, el('span', { text: 'Implied value' }), el('b', { class: 'num', text: fmtUsd(row.implied_value_usd) }))
       ),
       el('p', { class: 'sub', text: 'Model ' + DATA.model_version + ': the same function scores every protocol. The page recomputes this row as ' + fmtUsd(recomputed) + (recomputed === row.implied_value_usd ? ', the same number board.json carries.' : ', which differs from the board: the data would be stale.') + ' This is an estimate, not a price.' })
+    ));
+    panel.appendChild(el('section', { class: 'detail-section' },
+      el('h3', { text: 'Farm economics' }),
+      el('div', { class: 'equation' },
+        el('div', null, el('span', { text: 'Expected value' }), el('b', { class: 'num', text: '$' + row.farm_expected_usd.toFixed(2) })),
+        el('div', null, el('span', { text: 'Gas for the plan' }), el('b', { class: 'num', text: '$' + row.farm_gas_usd.toFixed(2) })),
+        el('div', null, el('span', { text: 'Yield the capital forgoes' }), el('b', { class: 'num', text: '$' + row.farm_opportunity_usd.toFixed(2) })),
+        el('div', null, el('span', { text: 'Net' }), el('b', { class: 'num', text: (row.farm_net_usd >= 0 ? '+' : '') + '$' + row.farm_net_usd.toFixed(2) })),
+        el('div', null, el('span', { text: 'Verdict' }), el('b', { class: 'num', text: row.farm_verdict }))
+      ),
+      el('p', { class: 'sub', text: 'Expected value assumes the launch gives 5% of supply to farmers, split among an estimated wallet count (one wallet per $1,000 of TVL, capped at 100,000). Farm when the net clears $10, thin when it clears $0, skip when it does not.' })
     ));
     panel.appendChild(el('section', { class: 'detail-section' },
       el('h3', { text: 'Farm plan' }),

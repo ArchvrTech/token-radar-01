@@ -97,6 +97,10 @@ tbody tr[data-selected="true"] { background: #1a2a1e; }
 .tag { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .tag.live::before { background: var(--amber); }
+.tag.farm::before { background: var(--accent); }
+.tag.thin::before { background: var(--amber); }
+.tag.skip::before { background: var(--red); }
+.tag.skip { color: var(--red); }
 .badge { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--amber); border-radius: 20px; color: var(--amber); font-size: 11px; font-family: var(--font-num); vertical-align: 1px; }
 
 .model { margin-top: var(--s4); padding: var(--s5); display: grid; gap: var(--s3); }
