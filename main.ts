@@ -1,7 +1,7 @@
-// Token Radar, model radar-5: a Node 22 program, standard library only.
+// Token Radar, model radar-4e: a Node 22 program, standard library only.
 //
 // It reads the sealed snapshot from /input/snapshot.json (or --input <file|dir>), scores every
-// pre-token protocol with the fitted comps curve in lib/model.ts, writes the ranked board to
+// pre-token protocol with the sector-median model in lib/model.ts, writes the ranked board to
 // /output/board.json, writes the dashboard's data beside the page as /output/data.js, copies this
 // repository's dashboard/ to /output and rebuilds its screenshots/ there from their base64 text
 // (the GitHub connector cannot carry the binary PNGs), and writes /output/dossier.json with the
